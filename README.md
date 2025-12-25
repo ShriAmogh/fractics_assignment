@@ -1,1 +1,1 @@
-Testing acc
+Testing account
