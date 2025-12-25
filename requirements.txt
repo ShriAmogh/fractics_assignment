@@ -1,0 +1,9 @@
+requests
+feedparser
+tqdm
+pymupdf
+sentence_transformers
+chromadb
+numpy
+datasets
+google-genai
