@@ -10,11 +10,9 @@ CHROMA_DIR = "chroma_store"
 COLLECTION_NAME = "cscl_papers"
 CHUNK_SIZE = 800
 CHUNK_OVERLAP = 150
-# --------------------------------------
 
 Path(CHROMA_DIR).mkdir(exist_ok=True)
 
-# -------- Utilities --------
 def chunk_text(text, size=800, overlap=150):
     chunks = []
     start = 0
@@ -25,17 +23,15 @@ def chunk_text(text, size=800, overlap=150):
     return chunks
 
 
-# -------- Load dataset --------
 print("Loading dataset json with 50 papers...........")
 with open(DATASET_FILE, "r", encoding="utf-8") as f:
     papers = json.load(f)
 
-print(f"📄 Loaded {len(papers)} papers")
+print(f"Loaded {len(papers)} papers")
 
-# -------- Embedding model --------
+
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# -------- Persistent Chroma Client --------
 client = PersistentClient(path=CHROMA_DIR)
 
 collection = client.get_or_create_collection(
@@ -43,7 +39,6 @@ collection = client.get_or_create_collection(
     metadata={"hnsw:space": "cosine"}
 )
 
-# -------- Ingestion --------
 ids, documents, metadatas = [], [], []
 
 print("Starting ingestion with metadata...")
@@ -62,7 +57,6 @@ for paper in papers:
             "submission_date": paper["submission_date"]
         })
 
-# -------- Batch Embedding --------
 print("Generating embeddings...")
 embeddings = embedding_model.encode(
     documents,
@@ -83,5 +77,5 @@ for start, end in batched_indices(len(ids), BATCH_SIZE):
         metadatas=metadatas[start:end],
     )
 
-print(f"✅ Indexed {len(documents)} chunks into ChromaDB")
-print("📦 Data persisted to disk automatically")
+print(f"Indexed {len(documents)} chunks into ChromaDB")
+print("Data persisted to disk automatically")

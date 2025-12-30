@@ -13,7 +13,7 @@ class AgenticController:
         error_feedback = None
 
         for attempt in range(1, self.max_retries + 1):
-            print(f"\n🔁 Attempt {attempt}")
+            print(f"\n Attempt {attempt}")
 
             raw_output = self.creator.generate(
                 paper_text,

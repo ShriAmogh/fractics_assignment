@@ -6,7 +6,7 @@ TOP_K = 5
 
 controller = AgenticController()
 
-print("\n🔎 Hybrid RAG + Agentic Summary System (Ctrl+C to exit)")
+print("\nHybrid RAG + Agentic Summary System")
 
 while True:
     try:
@@ -54,4 +54,4 @@ while True:
         break
 
     except Exception as e:
-        print("❌ Error:", e)
+        print(" Error:", e)
