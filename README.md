@@ -1,157 +1,166 @@
-Phase 1: Data Scraping
+**Phase 1: Data Scraping** --> Location: scraper/scraper.py
 
-Location: scraper/scraper.py
+Description
 
-Scrapes 50 academic research papers
+    Scrapes 50 academic research papers
 
-Stores results in a structured JSON format
+    Stores results in a structured JSON format
 
 Output
 
-data/cscl_dataset.json
+    data/cscl_dataset.json
 
 Each paper includes:
 
-paper_id
+    paper_id
 
-title
+    title
 
-abstract
+    abstract
 
-authors
+    authors
 
-submission_date
+    submission_date
 
-content
+    content
 
-references
+    references
 
 Run
-python scraper/scraper.py
+    python scraper/scraper.py
 
-Phase 2: Data Ingestion & Vectorization
-
-Location: data_ingestion/ingestion.py
+**Phase 2: Data Ingestion & Vectorization** --. Location: data_ingestion/ingestion.py
 
 Description
 
-Loads the scraped JSON dataset
+    Loads the scraped JSON dataset
 
-Splits long papers into overlapping chunks
+    Splits long papers into overlapping chunks
 
-Generates embeddings using sentence-transformers
+    Generates embeddings using sentence-transformers
 
-Stores vectors in ChromaDB with metadata for hard-constraint filtering
+    Stores vectors in ChromaDB with metadata attached for filtering
 
 Key Features
 
-Chunking with overlap
+    Chunking with overlap
 
-Deterministic chunk IDs
+    Deterministic chunk IDs
 
-Metadata preservation
+    Metadata preservation
 
-Persistent vector storage
+    Persistent vector storage
 
 Output
 
-Embedded vectors stored in chroma_store/
+    Embedded vectors stored in chroma_store/
 
 Run
-python data_ingestion/ingestion.py
+    python data_ingestion/ingestion.py
 
-Phase 3: Hybrid RAG + Agentic Workflow
-
-Location: run.py
+**Phase 3: Hybrid RAG with Cross-Encoder and Agentic Workflow** --> Location: run.py
 
 Description
 
-Acts as the main execution entrypoint
+    Main execution entrypoint
 
-Integrates retrieval with agentic reasoning
+    Combines dense retrieval, neural re-ranking, and agentic reasoning
 
-Workflow
+    Retrieval Pipeline (Updated)
+    Step 1: Vector Retrieval (Bi-Encoder)
 
-Accepts a research query
+    User query is embedded using all-MiniLM-L6-v2
 
-Performs semantic search using ChromaDB
+    Cosine similarity search is performed in ChromaDB
 
-Retrieves the most relevant paper
+    Top VECTOR_TOP_K = 20 candidate chunks are retrieved
 
-Executes an agentic self-correction workflow to generate a validated summary
+    This step prioritizes recall and speed
 
-Run
-python run.py
+    Step 2: Cross-Encoder Re-Ranking
 
-Agentic Workflow (Core Innovation)
+    Retrieved 20 candidate chunks are re-ranked using:
 
-The agentic system ensures structured, reliable outputs using multiple cooperating agents with validation and retry logic.
+    cross-encoder/ms-marco-MiniLM-L-6-v2
 
-AgenticController (Orchestrator)
+    Each candidate is scored jointly with the query
 
-Location: agents/controller.py
+    Candidates are sorted by relevance score
+
+    Low-confidence results are discarded using a threshold
+
+    Final top results are selected for downstream processing
+
+
+**Agentic Workflow**
+
+    Once the best paper chunk is selected, the system enters an agentic self-correction loop to ensure reliable structured output.
+
+    AgenticController (Orchestrator)
+
+    Location: agents/controller.py
 
 Responsibilities
 
-Orchestrates interactions between agents
+    Coordinates multiple agents
 
-Enforces retry logic (maximum 3 attempts)
+    Controls retry logic (maximum 3 attempts)
 
-Feeds validation errors back to the generator
+    Feeds validation errors back to the generator
 
-Makes final success or failure decision
+    Terminates safely on repeated failure
 
-JSONCreatorAgent (Generator)
+    JSONCreatorAgent (Generator)
 
-Location: agents/json_creator.py
+    Location: agents/json_creator.py
 
 Description
 
-Uses Google Gemini (google-genai)
+    Uses Google Gemini (google-genai)
 
-Generates a structured JSON summary of the retrieved paper
+    Generates a structured JSON summary of the retrieved paper
 
 Output Schema
-{
-  "title": "string",
-  "summary": "string",
-  "complexity_score": 1-10,
-  "future_work": "string"
-}
+    {
+      "title": "string",
+      "summary": "string",
+      "complexity_score": 1-10,
+      "future_work": "string"
+    }
 
-Constraints
+    Constraints
 
-JSON output only
+    JSON output only
 
-No markdown
+    No markdown
 
-No explanations or additional text
+    No explanations or additional text
 
-ValidatorAgent (Verifier)
+    ValidatorAgent (Verifier)
 
-Location: agents/validator.py
+    Location: agents/validator.py
 
-Validation Methods
+Validation Steps
 
-json.loads for syntax validation
+    Syntax validation using json.loads
 
-Pydantic schema enforcement
+    Schema enforcement using Pydantic
 
-Failure Handling
+    Failure Handling
 
-Missing required fields
+    Missing fields
 
-Incorrect data types
+    Incorrect data types
 
-Invalid value ranges
+    Invalid value ranges
 
-Empty or null responses
+    Empty or malformed responses
 
-Validation errors are automatically fed back to the generator for correction
+    Validation errors are automatically fed back to the generator
 
-Schema Definition
+    Schema Definition
 
-Location: agents/schema.py
+    Location: agents/schema.py
 
 class PaperSummary(BaseModel):
     title: str
@@ -163,20 +172,34 @@ Self-Correction Loop
 
 Attempt 1
 
-Generate JSON
+    Generate structured JSON
 
-Validate
+    Validate output
 
-Fail
+    Failure detected
 
-Error feedback passed to generator
+    Validation error passed back to generator
 
-Attempt 2 / 3
+    Retry up to 3 times
 
-Regenerate JSON
-
-Revalidate
-
-On success: return validated structured output
+    On success: return validated JSON
 
 After 3 failures: graceful termination with error
+
+End-to-End Workflow Summary
+
+    Scrape academic papers
+
+    Ingest and embed content into ChromaDB
+
+    Accept user query
+
+    Perform cosine similarity search (Top 20)
+
+    Re-rank results using cross-encoder
+
+    Select best candidate
+
+    Run agentic self-correction workflow
+
+    Output validated structured summary
