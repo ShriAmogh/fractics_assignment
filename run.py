@@ -10,10 +10,9 @@ print("\nHybrid RAG + Agentic Summary System")
 
 while True:
     try:
-
         query = input("\nEnter your research query: ").strip()
         if not query:
-            print(" Query cannot be empty")
+            print("Query cannot be empty")
             continue
 
         date_filter = input(
@@ -21,15 +20,18 @@ while True:
         ).strip()
         date_filter = date_filter if date_filter else None
 
+        # ---- Hybrid Retrieval ----
         results = hybrid_search(query, date_filter, TOP_K)
 
-        if not results["documents"][0]:
+        if not results:
             print("No results found.")
             continue
 
-        # Take the top result
-        first_doc = results["documents"][0][0]
-        meta = results["metadatas"][0][0]
+        # ---- Take top reranked result ----
+        top_result = results[0]
+
+        first_doc = top_result["document"]
+        meta = top_result["metadata"]
 
         print("\nTop Retrieved Paper")
         print("-" * 60)
@@ -41,17 +43,17 @@ while True:
         print(f"Snippet:\n{first_doc[:300].replace('\\n', ' ')}...")
         print("-" * 60)
 
-        print("\n Running Agentic JSON-Correction Loop...")
+        print("\nRunning Agentic JSON-Correction Loop...")
         structured_summary = controller.run(first_doc)
 
-        print("\n FINAL STRUCTURED SUMMARY (Validated JSON)")
+        print("\nFINAL STRUCTURED SUMMARY (Validated JSON)")
         print("=" * 60)
         print(json.dumps(structured_summary, indent=2))
         print("=" * 60)
 
     except KeyboardInterrupt:
-        print("\n Key interuption -------------")
+        print("\nKey interruption — exiting system.")
         break
 
     except Exception as e:
-        print(" Error:", e)
+        print("Error:", e)
