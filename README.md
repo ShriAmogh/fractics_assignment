@@ -1,205 +1,357 @@
-**Phase 1: Data Scraping** --> Location: scraper/scraper.py
+# Hybrid Agentic RAG System for Academic Paper Intelligence
+
+This repository implements a **query-aware, agent-driven Hybrid Retrieval-Augmented Generation (RAG) system** for academic research papers.
+
+Unlike naive RAG systems that directly embed the raw user query, this system first **interprets the query using an agent**, extracting **intent, keywords, and temporal constraints**.  
+These signals are then used to drive a **BM25-first lexical search**, followed by **dense semantic retrieval**, **cross-encoder re-ranking**, and a **LangGraph-based agentic self-correction workflow**.
+
+The goal is to achieve **high precision**, **temporal relevance**, and **schema-safe structured outputs**.
+
+---
+
+## Core Design Principles
+
+- Query interpretation before retrieval
+- BM25 for hardcore lexical + date-based search
+- Dense embeddings for semantic recall
+- Cross-encoders for precision ranking
+- Agentic validation and retry logic
+- Deterministic, debuggable execution flow
+
+---
+
+## Project Structure
+
+
+├── scraper/
+│ └── scraper.py # Academic paper scraping
+│
+├── data/
+│ └── cscl_dataset.json # Structured raw dataset
+│
+├── data_ingestion/
+│ └── ingestion.py # Chunking + embedding + ChromaDB
+│
+├── chroma_store/ # Persistent vector store. Not included 
+│
+├── langgraph_agents/ # LangGraph-based agentic workflow
+│ ├── init.py
+│ ├── agents.py # RAG, Generator, Evaluator agents
+│ ├── graph.py # LangGraph construction & routing
+│ ├── graphstate.py # Shared state across nodes
+│ ├── prompts.py # Prompt templates
+│ └── schema.py # Pydantic output schema
+│
+├── agents/ #traditional agents
+│ ├── controller.py # Agent orchestrator
+│ ├── json_creator.py # Structured JSON generator
+│ ├── validator.py # Output verifier
+│ └── schema.py # Pydantic schema
+│
+├── langgraph_run.py # Main execution Langgraph agents pipeline
+│
+├── run.py # Main execution traditional agents pipeline
+
+
+---
+
+## High-Level System Flow
+
+User Query
+↓
+Query Interpreter Agent
+↓
+Context + Date Extraction
+↓
+BM25 Lexical Retrieval
+↓
+Dense Vector Retrieval
+↓
+Cross-Encoder Re-Ranking
+↓
+Best Chunk Selection
+↓
+LangGraph Agentic Workflow
+↓
+Validated Structured JSON Output
+
+
+---
+
+## 1. Data Scraping
+
+**Location:** `scraper/scraper.py`
+
+### Description
+- Scrapes **50 academic research papers**
+- Extracts metadata and full content
+- Normalizes results into a structured JSON dataset
+
+### Output
+data/cscl_dataset.json
+
+### Paper Fields
+- `paper_id`
+- `title`
+- `abstract`
+- `authors`
+- `submission_date`
+- `content`
+- `references`
+
+### Run`
+```bash
+python scraper/scraper.py
+
+### 2. Data Ingestion & Vectorization
+
+Location: data_ingestion/ingestion.py
 
 Description
 
-    Scrapes 50 academic research papers
+Loads the scraped dataset
 
-    Stores results in a structured JSON format
+Splits long papers into overlapping chunks
 
-Output
+Generates embeddings using Sentence-Transformers
 
-    data/cscl_dataset.json
-
-Each paper includes:
-
-    paper_id
-
-    title
-
-    abstract
-
-    authors
-
-    submission_date
-
-    content
-
-    references
-
-Run
-    python scraper/scraper.py
-
-**Phase 2: Data Ingestion & Vectorization** --. Location: data_ingestion/ingestion.py
-
-Description
-
-    Loads the scraped JSON dataset
-
-    Splits long papers into overlapping chunks
-
-    Generates embeddings using sentence-transformers
-
-    Stores vectors in ChromaDB with metadata attached for filtering
+Stores vectors in ChromaDB with metadata
 
 Key Features
 
-    Chunking with overlap
+Overlapping chunking for context preservation
 
-    Deterministic chunk IDs
+Deterministic chunk IDs
 
-    Metadata preservation
+Metadata attached to every vector
 
-    Persistent vector storage
+Persistent on-disk vector store
 
-Output
-
-    Embedded vectors stored in chroma_store/
-
-Run
-    python data_ingestion/ingestion.py
-
-**Phase 3: Hybrid RAG with Cross-Encoder and Agentic Workflow** --> Location: run.py
-
-Description
-
-    Main execution entrypoint
-
-    Combines dense retrieval, neural re-ranking, and agentic reasoning
-
-    Retrieval Pipeline (Updated)
-    Step 1: Vector Retrieval (Bi-Encoder)
-
-    User query is embedded using all-MiniLM-L6-v2
-
-    Cosine similarity search is performed in ChromaDB
-
-    Top VECTOR_TOP_K = 20 candidate chunks are retrieved
-
-    This step prioritizes recall and speed
-
-    Step 2: Cross-Encoder Re-Ranking
-
-    Retrieved 20 candidate chunks are re-ranked using:
-
-    cross-encoder/ms-marco-MiniLM-L-6-v2
-
-    Each candidate is scored jointly with the query
-
-    Candidates are sorted by relevance score
-
-    Low-confidence results are discarded using a threshold
-
-    Final top results are selected for downstream processing
-
-
-**Agentic Workflow**
-
-    Once the best paper chunk is selected, the system enters an agentic self-correction loop to ensure reliable structured output.
-
-    AgenticController (Orchestrator)
-
-    Location: agents/controller.py
+python data_ingestion/ingestion.py
+3. Query Interpretation Layer (Critical)
+Before retrieval, the raw user query is passed to a Query Interpreter Agent.
 
 Responsibilities
+The interpreter:
 
-    Coordinates multiple agents
+Extracts user intent
 
-    Controls retry logic (maximum 3 attempts)
+Identifies keywords and entities
 
-    Feeds validation errors back to the generator
+Detects temporal constraints (e.g., recent, after 2021)
 
-    Terminates safely on repeated failure
+Produces a structured retrieval plan
 
-    JSONCreatorAgent (Generator)
+Example
+User Query
 
-    Location: agents/json_creator.py
+matlab
+Copy code
+Recent graph-based RAG methods in healthcare
+Interpreted Context
 
-Description
+json
+Copy code
+{
+  "topic": "graph-based RAG",
+  "domain": "healthcare",
+  "date_filter": ">=2022",
+  "keywords": ["GraphRAG", "knowledge graphs", "medical data"]
+}
+This interpreted context directly controls BM25 filtering and retrieval behavior.
 
-    Uses Google Gemini (google-genai)
+4. Hybrid Retrieval Pipeline
+Step 1: BM25 Lexical Retrieval (Primary Filter)
+Uses BM25 over paper content and metadata
 
-    Generates a structured JSON summary of the retrieved paper
+Enforces:
 
-Output Schema
-    {
-      "title": "string",
-      "summary": "string",
-      "complexity_score": 1-10,
-      "future_work": "string"
-    }
+Keyword matching
 
-    Constraints
+Date-based filtering
 
-    JSON output only
+Domain relevance
 
-    No markdown
+Produces a high-precision candidate set
 
-    No explanations or additional text
+This step ensures hard constraints are respected before semantic search.
 
-    ValidatorAgent (Verifier)
+Step 2: Dense Vector Retrieval (Bi-Encoder)
+Query embedded using:
 
-    Location: agents/validator.py
+css
+Copy code
+all-MiniLM-L6-v2
+Cosine similarity search in ChromaDB
 
-Validation Steps
+Retrieves top K = 20 chunks
 
-    Syntax validation using json.loads
+Optimized for semantic recall
 
-    Schema enforcement using Pydantic
+Step 3: Cross-Encoder Re-Ranking
+Re-ranks candidates using:
 
-    Failure Handling
+bash
+Copy code
+cross-encoder/ms-marco-MiniLM-L-6-v2
+Joint query–chunk scoring
 
-    Missing fields
+Low-confidence results discarded
 
-    Incorrect data types
+Final best chunk selected
 
-    Invalid value ranges
+5. LangGraph Agentic Workflow
+Once the best chunk is selected, the system enters a LangGraph-based agentic self-correction loop to guarantee schema-correct structured output.
 
-    Empty or malformed responses
+LangGraph Control Flow
+python
+Copy code
+MAX_ATTEMPTS = 3
 
-    Validation errors are automatically fed back to the generator
+def router(state):
+    if state["evaluation_errors"] is None:
+        return "end"
+    if state["attempts"] >= MAX_ATTEMPTS:
+        return "end"
+    return "retry"
+Execution graph:
 
-    Schema Definition
+rag → generate → evaluate
 
-    Location: agents/schema.py
+On failure → retry generation
 
+On success or max retries → terminate safely
+
+langgraph_agents Module
+Purpose
+Implements deterministic agent orchestration using LangGraph.
+
+This layer replaces ad-hoc loops with:
+
+Explicit state transitions
+
+Controlled retries
+
+Clear failure boundaries
+
+File Responsibilities
+graphstate.py
+Defines the shared state passed across graph nodes:
+
+User query
+
+Interpreted context
+
+Retrieved documents
+
+Generated output
+
+Validation errors
+
+Attempt counter
+
+agents.py
+Defines core LangGraph nodes:
+
+RAG Agent – hybrid retrieval execution
+
+Generator Agent – LLM-based JSON generation
+
+Evaluator Agent – output validation
+
+Each agent operates only on shared state.
+
+prompts.py
+Centralized prompt templates for:
+
+Generation
+
+Retry correction
+
+Validation feedback
+
+schema.py
+Defines Pydantic schema for structured output validation.
+
+python
+Copy code
 class PaperSummary(BaseModel):
     title: str
     summary: str
     complexity_score: int = Field(ge=1, le=10)
     future_work: str
+graph.py
+Constructs the LangGraph:
 
-Self-Correction Loop
+Node definitions
 
-Attempt 1
+Execution order
 
-    Generate structured JSON
+Conditional routing
 
-    Validate output
+Retry logic
 
-    Failure detected
+Safe termination
 
-    Validation error passed back to generator
+This file is the control brain of the system.
 
-    Retry up to 3 times
+6. Structured Output Format
+json
+Copy code
+{
+  "title": "string",
+  "summary": "string",
+  "complexity_score": 1-10,
+  "future_work": "string"
+}
+Constraints
+JSON only
 
-    On success: return validated JSON
+No markdown
 
-After 3 failures: graceful termination with error
+No explanations
 
-End-to-End Workflow Summary
+Strict schema enforcement
 
-    Scrape academic papers
+7. End-to-End Execution Summary
+Scrape academic papers
 
-    Ingest and embed content into ChromaDB
+Ingest and embed content
 
-    Accept user query
+Interpret user query into structured intent
 
-    Perform cosine similarity search (Top 20)
+Apply BM25 lexical + date-aware retrieval
 
-    Re-rank results using cross-encoder
+Perform dense semantic retrieval
 
-    Select best candidate
+Re-rank using cross-encoder
 
-    Run agentic self-correction workflow
+Select best context
 
-    Output validated structured summary
+Run LangGraph agentic validation
+
+Output reliable structured JSON
+
+Why This Architecture Works
+Prevents semantic drift
+
+Respects temporal constraints
+
+Improves factual grounding
+
+Guarantees schema safety
+
+Enables deterministic debugging
+
+Scales to research-grade workloads
+
+Future Enhancements
+Adaptive BM25–Dense weighting
+
+Multi-document synthesis
+
+Retrieval evaluation metrics (Recall@K, MRR)
+
+Streaming and async inference
+
+Production deployment (API + Docker)
