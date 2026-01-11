@@ -8,3 +8,8 @@ numpy
 datasets
 google-genai
 pydantic
+langchain
+langgraph
+langchain-core
+IPython
+langchain_google_genai
