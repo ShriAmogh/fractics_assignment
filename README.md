@@ -99,9 +99,9 @@ data/cscl_dataset.json
 - `content`
 - `references`
 
-### Run`
-```bash
-python scraper/scraper.py
+### Run
+
+- python scraper/scraper.py
 
 ### 2. Data Ingestion & Vectorization
 
@@ -109,103 +109,85 @@ Location: data_ingestion/ingestion.py
 
 Description
 
-Loads the scraped dataset
+    Loads the scraped dataset
 
-Splits long papers into overlapping chunks
+    Splits long papers into overlapping chunks
 
-Generates embeddings using Sentence-Transformers
+    Generates embeddings using Sentence-Transformers
 
-Stores vectors in ChromaDB with metadata
+    Stores vectors in ChromaDB with metadata
 
-Key Features
+    Key Features
 
-Overlapping chunking for context preservation
+    Overlapping chunking for context preservation
 
-Deterministic chunk IDs
+    Deterministic chunk IDs
 
-Metadata attached to every vector
+    Metadata attached to every vector
 
-Persistent on-disk vector store
+    Persistent on-disk vector store
 
-python data_ingestion/ingestion.py
+- python data_ingestion/ingestion.py
 3. Query Interpretation Layer (Critical)
 Before retrieval, the raw user query is passed to a Query Interpreter Agent.
 
 Responsibilities
 The interpreter:
 
-Extracts user intent
+    Extracts user intent
 
-Identifies keywords and entities
+    Identifies keywords and entities
 
-Detects temporal constraints (e.g., recent, after 2021)
+    Detects temporal constraints (e.g., recent, after 2021)
 
-Produces a structured retrieval plan
+    Produces a structured retrieval plan
 
-Example
-User Query
+    Example
+    User Query
 
-matlab
-Copy code
-Recent graph-based RAG methods in healthcare
-Interpreted Context
-
-json
-Copy code
-{
-  "topic": "graph-based RAG",
-  "domain": "healthcare",
-  "date_filter": ">=2022",
-  "keywords": ["GraphRAG", "knowledge graphs", "medical data"]
-}
-This interpreted context directly controls BM25 filtering and retrieval behavior.
 
 4. Hybrid Retrieval Pipeline
-Step 1: BM25 Lexical Retrieval (Primary Filter)
-Uses BM25 over paper content and metadata
+    Step 1: BM25 Lexical Retrieval (Primary Filter)
+        Uses BM25 over paper content and metadata
 
-Enforces:
+    Enforces:
 
-Keyword matching
+        Keyword matching
 
-Date-based filtering
+        Date-based filtering
 
-Domain relevance
+        Domain relevance
 
-Produces a high-precision candidate set
+        Produces a high-precision candidate set
 
-This step ensures hard constraints are respected before semantic search.
+        This step ensures hard constraints are respected before semantic search.
 
-Step 2: Dense Vector Retrieval (Bi-Encoder)
-Query embedded using:
+    Step 2: Dense Vector Retrieval (Bi-Encoder)
+    Query embedded using:
 
-css
-Copy code
-all-MiniLM-L6-v2
-Cosine similarity search in ChromaDB
 
-Retrieves top K = 20 chunks
+        all-MiniLM-L6-v2
+        Cosine similarity search in ChromaDB
 
-Optimized for semantic recall
+        Retrieves top K = 20 chunks
 
-Step 3: Cross-Encoder Re-Ranking
-Re-ranks candidates using:
+        Optimized for semantic recall
 
-bash
-Copy code
-cross-encoder/ms-marco-MiniLM-L-6-v2
-Joint query–chunk scoring
+    Step 3: Cross-Encoder Re-Ranking
+    Re-ranks candidates using:
 
-Low-confidence results discarded
+        cross-encoder/ms-marco-MiniLM-L-6-v2
+        Joint query–chunk scoring
 
-Final best chunk selected
+        Low-confidence results discarded
+
+        Final best chunk selected
 
 5. LangGraph Agentic Workflow
 Once the best chunk is selected, the system enters a LangGraph-based agentic self-correction loop to guarantee schema-correct structured output.
 
 LangGraph Control Flow
-python
-Copy code
+
 MAX_ATTEMPTS = 3
 
 def router(state):
@@ -222,7 +204,6 @@ On failure → retry generation
 
 On success or max retries → terminate safely
 
-langgraph_agents Module
 Purpose
 Implements deterministic agent orchestration using LangGraph.
 
@@ -238,112 +219,109 @@ File Responsibilities
 graphstate.py
 Defines the shared state passed across graph nodes:
 
-User query
+    User query
 
-Interpreted context
+    Interpreted context
 
-Retrieved documents
+    Retrieved documents
 
-Generated output
+    Generated output
 
-Validation errors
+    Validation errors
 
-Attempt counter
+    Attempt counter
 
 agents.py
 Defines core LangGraph nodes:
 
-RAG Agent – hybrid retrieval execution
+    RAG Agent – hybrid retrieval execution
 
-Generator Agent – LLM-based JSON generation
+    Generator Agent – LLM-based JSON generation
 
-Evaluator Agent – output validation
+    Evaluator Agent – output validation
 
-Each agent operates only on shared state.
+    Each agent operates only on shared state.
 
 prompts.py
 Centralized prompt templates for:
 
-Generation
+    Generation
 
-Retry correction
+    Retry correction
 
-Validation feedback
+    Validation feedback
 
 schema.py
 Defines Pydantic schema for structured output validation.
 
-python
-Copy code
-class PaperSummary(BaseModel):
-    title: str
-    summary: str
-    complexity_score: int = Field(ge=1, le=10)
-    future_work: str
+    class PaperSummary(BaseModel):
+        title: str
+        summary: str
+        complexity_score: int = Field(ge=1, le=10)
+        future_work: str
 graph.py
 Constructs the LangGraph:
 
-Node definitions
+    Node definitions
 
-Execution order
+    Execution order
 
-Conditional routing
+    Conditional routing
 
-Retry logic
+    Retry logic
 
-Safe termination
+    Safe termination
 
-This file is the control brain of the system.
+    This file is the control brain of the system.
 
 6. Structured Output Format
-json
-Copy code
-{
-  "title": "string",
-  "summary": "string",
-  "complexity_score": 1-10,
-  "future_work": "string"
-}
-Constraints
-JSON only
 
-No markdown
+    {
+    "title": "string",
+    "summary": "string",
+    "complexity_score": 1-10,
+    "future_work": "string"
+    }
+    Constraints
+    JSON only
 
-No explanations
+    No markdown
 
-Strict schema enforcement
+    No explanations
+
+    Strict schema enforcement
 
 7. End-to-End Execution Summary
-Scrape academic papers
+    Scrape academic papers
 
-Ingest and embed content
+    Ingest and embed content
 
-Interpret user query into structured intent
+    Interpret user query into structured intent
 
-Apply BM25 lexical + date-aware retrieval
+    Apply BM25 lexical + date-aware retrieval
 
-Perform dense semantic retrieval
+    Perform dense semantic retrieval
 
-Re-rank using cross-encoder
+    Re-rank using cross-encoder
 
-Select best context
+    Select best context
 
-Run LangGraph agentic validation
+    Run LangGraph agentic validation
 
-Output reliable structured JSON
+    Output reliable structured JSON
 
 Why This Architecture Works
-Prevents semantic drift
+    Prevents semantic drift
 
-Respects temporal constraints
+    Respects temporal constraints
 
-Improves factual grounding
+    Improves factual grounding
 
-Guarantees schema safety
+    Guarantees schema safety
 
-Enables deterministic debugging
+    Enables deterministic debugging
 
-Scales to research-grade workloads
+    Scales to research-grade workloads
 
 Future Enhancements
 Adaptive BM25–Dense weighting
